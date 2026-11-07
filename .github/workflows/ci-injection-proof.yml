@@ -1,14 +1,12 @@
-name: CI Injection Proof (fork only)
+name: CI Injection Proof (temporary)
 
 on:
-  workflow_dispatch:
-    inputs:
-      probe:
-        description: "Select the exact harmless marker payload shown in the instructions"
-        required: true
-        type: string
+  push:
+    branches:
+      - ci-injection-proof-20261107
+    paths:
+      - .github/workflows/ci-injection-proof.yml
 
-# No repository, package, deployment, or token permissions.
 permissions: {}
 
 jobs:
@@ -17,23 +15,10 @@ jobs:
     timeout-minutes: 1
     permissions: {}
     steps:
-      - name: Verify the exact harmless test input
-        shell: bash
-        env:
-          PROBE: ${{ inputs.probe }}
-        run: |
-          expected='$(printf ''CI_INJECTION_PROOF'' | tee "$RUNNER_TEMP/CI_INJECTION_PROOF")'
-          if [ "$PROBE" != "$expected" ]; then
-            echo "ERROR: This proof workflow accepts only the exact harmless marker test."
-            exit 1
-          fi
-
-      - name: Vulnerable input-to-shell sink (intentional PoC)
-        if: ${{ inputs.probe == '$(printf ''CI_INJECTION_PROOF'' | tee "$RUNNER_TEMP/CI_INJECTION_PROOF")' }}
+      - name: Interpolate untrusted commit message into shell (marker-only proof)
         shell: bash
         run: |
-          # Deliberately unsafe interpolation, constrained to one marker-only payload.
-          printf 'RESULT=%s\n' ${{ inputs.probe }}
+          printf 'COMMIT_MESSAGE=%s\n' ${{ github.event.head_commit.message }}
 
       - name: Verify marker created by the injected command
         if: always()
