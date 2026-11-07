@@ -1,0 +1,48 @@
+name: CI Injection Proof (fork only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "Select the exact harmless marker payload shown in the instructions"
+        required: true
+        type: string
+
+# No repository, package, deployment, or token permissions.
+permissions: {}
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Verify the exact harmless test input
+        shell: bash
+        env:
+          PROBE: ${{ inputs.probe }}
+        run: |
+          expected='$(printf ''CI_INJECTION_PROOF'' | tee "$RUNNER_TEMP/CI_INJECTION_PROOF")'
+          if [ "$PROBE" != "$expected" ]; then
+            echo "ERROR: This proof workflow accepts only the exact harmless marker test."
+            exit 1
+          fi
+
+      - name: Vulnerable input-to-shell sink (intentional PoC)
+        if: ${{ inputs.probe == '$(printf ''CI_INJECTION_PROOF'' | tee "$RUNNER_TEMP/CI_INJECTION_PROOF")' }}
+        shell: bash
+        run: |
+          # Deliberately unsafe interpolation, constrained to one marker-only payload.
+          printf 'RESULT=%s\n' ${{ inputs.probe }}
+
+      - name: Verify marker created by the injected command
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/CI_INJECTION_PROOF" ]; then
+            echo "CI_INJECTION_PROOF=PASS"
+            echo "MARKER_CONTENT=$(cat "$RUNNER_TEMP/CI_INJECTION_PROOF")"
+          else
+            echo "CI_INJECTION_PROOF=FAIL"
+            exit 1
+          fi
