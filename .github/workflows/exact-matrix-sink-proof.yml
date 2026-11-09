@@ -34,18 +34,29 @@ jobs:
         shell: bash
         run: gzip -k -f ${{ matrix.path }} && mv ${{ matrix.path }}.gz ${{ matrix.asset_name }}.gz
 
-      - name: Verify synthetic release artifact integrity
+      - name: Verify synthetic release artifact content
         if: always()
         shell: bash
         run: |
-          target='function-runner-x86_64-linux-probe'
-          if [[ -f "$target" ]] && grep -aFq 'SYNTHETIC_ARTIFACT_TAMPER_MARKER' "$target" && ! gzip -t "$target" 2>/dev/null; then
+          target='function-runner-x86_64-linux-probe.gz'
+          unpacked="$RUNNER_TEMP/verified-synthetic-artifact"
+
+          if ! gzip -t "$target" 2>/dev/null; then
+            echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=NOT_VERIFIED"
+            echo "ARTIFACT_GZIP_VALID=NO"
+            exit 1
+          fi
+
+          gzip -dc "$target" > "$unpacked"
+
+          if grep -aFq 'SYNTHETIC_RELEASE_ARTIFACT_ORIGINAL' "$unpacked" &&
+             grep -aFq 'SYNTHETIC_ARTIFACT_TAMPER_MARKER' "$unpacked"; then
             echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=PASS"
-            echo "ARTIFACT_MARKER=FOUND"
-            echo "GZIP_INTEGRITY=FAILED_AS_EXPECTED"
+            echo "ORIGINAL_CONTENT=PRESENT"
+            echo "INJECTED_MARKER=FOUND_INSIDE_COMPRESSED_ARTIFACT"
+            echo "ARTIFACT_GZIP_VALID=YES"
             sha256sum "$target"
           else
-            echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=NOT_DETECTED"
-            echo "ARTIFACT_MARKER_OR_INTEGRITY_CHECK=FAIL"
+            echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=FAIL"
             exit 1
           fi
