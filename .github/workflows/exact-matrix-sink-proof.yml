@@ -1,10 +1,10 @@
-name: Exact matrix.asset_name sink proof
+name: Exact matrix.asset_name artifact integrity proof
 
 on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Harmless marker test value; run only in this fork"
+        description: "Synthetic test tag input; fork only"
         required: true
         type: string
 
@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   proof:
-    name: Exact matrix.asset_name sink reproduction
+    name: Exact matrix.asset_name artifact integrity reproduction
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
@@ -28,23 +28,24 @@ jobs:
         shell: bash
         run: |
           mkdir -p target/x86_64-unknown-linux-gnu/release
-          printf 'synthetic isolated test artifact\n' > target/x86_64-unknown-linux-gnu/release/function-runner
+          printf 'SYNTHETIC_RELEASE_ARTIFACT_ORIGINAL\n' > target/x86_64-unknown-linux-gnu/release/function-runner
 
       - name: Archive assets (same shell sink as Shopify build.yml)
         shell: bash
         run: gzip -k -f ${{ matrix.path }} && mv ${{ matrix.path }}.gz ${{ matrix.asset_name }}.gz
 
-      - name: Verify marker side effect
+      - name: Verify synthetic release artifact integrity
         if: always()
         shell: bash
         run: |
-          if [[ -f "$RUNNER_TEMP/CI_INJECTION_PROOF" ]]; then
-            echo "EXACT_MATRIX_ASSET_NAME_SINK=PASS"
-            echo "CI_INJECTION_PROOF=PASS"
-            printf 'MARKER_CONTENT='
-            cat "$RUNNER_TEMP/CI_INJECTION_PROOF"
+          target='function-runner-x86_64-linux-probe'
+          if [[ -f "$target" ]] && grep -aFq 'SYNTHETIC_ARTIFACT_TAMPER_MARKER' "$target" && ! gzip -t "$target" 2>/dev/null; then
+            echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=PASS"
+            echo "ARTIFACT_MARKER=FOUND"
+            echo "GZIP_INTEGRITY=FAILED_AS_EXPECTED"
+            sha256sum "$target"
           else
-            echo "EXACT_MATRIX_ASSET_NAME_SINK=FAIL"
-            echo "CI_INJECTION_PROOF=FAIL"
+            echo "SYNTHETIC_RELEASE_ARTIFACT_TAMPERING=NOT_DETECTED"
+            echo "ARTIFACT_MARKER_OR_INTEGRITY_CHECK=FAIL"
             exit 1
           fi
