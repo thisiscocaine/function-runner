@@ -8,14 +8,16 @@ on:
         required: true
         type: string
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   proof:
     name: Exact matrix.asset_name artifact integrity reproduction
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    permissions: {}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -24,6 +26,10 @@ jobs:
             asset_name: function-runner-x86_64-linux-${{ inputs.tag_name }}
 
     steps:
+      - name: Checkout fork with persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: true
       - name: Create synthetic build artifact
         shell: bash
         run: |
