@@ -42,17 +42,29 @@ jobs:
             shasum_cmd: shasum -a 256
           - name: x86_64-pc-windows-msvc
             os: windows-latest
-            path: target\x86_64-pc-windows-msvc\release\function-runner.exe
+            path: target/x86_64-pc-windows-msvc/release/function-runner.exe
             asset_name: function-runner-x86_64-windows-${{ inputs.tag_name }}
             shasum_cmd: sha256sum
           - name: aarch64-pc-windows-msvc
             os: windows-latest
-            path: target\aarch64-pc-windows-msvc\release\function-runner.exe
+            path: target/aarch64-pc-windows-msvc/release/function-runner.exe
             asset_name: function-runner-arm-windows-${{ inputs.tag_name }}
             shasum_cmd: sha256sum
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate tag name
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          case "$TAG_NAME" in
+            ''|*[!A-Za-z0-9._-]*)
+              echo "::error::tag_name contains unsupported characters"
+              exit 1
+              ;;
+          esac
+        shell: bash
 
       - name: Install cross compiler
         if: ${{ matrix.name == 'aarch64-unknown-linux-gnu' }}
@@ -68,14 +80,24 @@ jobs:
           echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
 
       - name: Install target
-        run: rustup target add ${{ matrix.name }}
+        env:
+          TARGET: ${{ matrix.name }}
+        run: rustup target add "$TARGET"
+        shell: bash
 
       - name: Build ${{ matrix.name }}
-        run: cargo build --release --target ${{ matrix.name }} --package function-runner
+        env:
+          TARGET: ${{ matrix.name }}
+        run: cargo build --release --target "$TARGET" --package function-runner
+        shell: bash
 
       - name: Archive assets
         if: ${{ inputs.should_upload_artifacts }}
-        run: gzip -k -f ${{ matrix.path }} && mv ${{ matrix.path }}.gz ${{ matrix.asset_name }}.gz
+        env:
+          ASSET_PATH: ${{ matrix.path }}
+          ASSET_NAME: ${{ matrix.asset_name }}
+        run: gzip -k -f "$ASSET_PATH" && mv "$ASSET_PATH.gz" "$ASSET_NAME.gz"
+        shell: bash
 
       - name: Upload assets to artifacts
         if: ${{ inputs.should_upload_artifacts }}
@@ -86,7 +108,10 @@ jobs:
 
       - name: Generate asset hash
         if: ${{ inputs.should_upload_artifacts }}
-        run: ${{ matrix.shasum_cmd }} ${{ matrix.asset_name }}.gz | awk '{ print $1 }' > ${{ matrix.asset_name }}.gz.sha256
+        env:
+          ASSET_NAME: ${{ matrix.asset_name }}
+        run: ${{ matrix.shasum_cmd }} "$ASSET_NAME.gz" | awk '{ print $1 }' > "$ASSET_NAME.gz.sha256"
+        shell: bash
 
       - name: Upload asset hash to artifacts
         if: ${{ inputs.should_upload_artifacts }}
